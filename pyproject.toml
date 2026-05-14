@@ -5,7 +5,7 @@ description = "Default template for PDM package"
 authors = [
     {name = "Thiago de Paula Monteiro", email = "thiagodepaulamonteiro@gmail.com"},
 ]
-dependencies = ["django>=6.0.5", "djangorestframework>=3.17.1", "psycopg2-binary>=2.9.12", "django-cors-headers>=4.9.0", "Pillow>=12.2.0", "python-dotenv>=1.2.2"]
+dependencies = ["django>=6.0.5", "djangorestframework>=3.17.1", "psycopg2-binary>=2.9.12", "django-cors-headers>=4.9.0", "Pillow>=12.2.0", "python-dotenv>=1.2.2", "django-cloudinary-storage>=0.3.0", "cloudinary>=1.44.2", "django-environ>=0.13.0"]
 requires-python = ">=3.14"
 readme = "README.md"
 license = {text = "MIT"}
