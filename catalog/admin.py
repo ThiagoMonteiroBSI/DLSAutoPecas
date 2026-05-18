@@ -19,8 +19,10 @@ admin.site.register(Category)
 admin.site.register(VehicleCompatibility)
 
 #RODAR MAKEMIGRATIONS E MIGRATE 
+
 #RODAR COMANDO 
 #pdm add Pillow django-cloudinary-storage cloudinary django-environ
 
-#RODAR COMANDO ABAIXO 
 #pdm add djangorestframework django-cors-headers
+
+#pdm add django-filter

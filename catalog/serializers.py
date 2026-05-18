@@ -16,6 +16,13 @@ class ProductListSerializer(serializers.ModelSerializer):
     brand_name = serializers.CharField(source='brand.name', read_only=True)
     category_name = serializers.SerializerMethodField()
 
+    class Meta:
+        model = Product
+        fields = ['id', 'sku', 'name', 'price', 'stock', 'brand_name', 'category_name']
+
+    def get_category_name(self, obj):
+        return str(obj.category) 
+    
 class ProductDetailSerializer(serializers.ModelSerializer):
     brand_name = serializers.CharField(source='brand.name', read_only=True)
     category_name = serializers.SerializerMethodField()
@@ -24,7 +31,11 @@ class ProductDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Product
-        fields = ['id', 'sku', 'name', 'price', 'stock', 'brand_name', 'category_name']
+        fields = [
+            'id', 'sku', 'oem_code', 'name', 'description', 
+            'price', 'stock', 'weight_kg', 'brand_name', 
+            'category_name', 'images', 'compatibilities'
+        ]
 
     def get_category_name(self, obj):
-        return str(obj.category) 
+        return str(obj.category)
