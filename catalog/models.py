@@ -15,7 +15,7 @@ class Brand(BaseModel):
     def __str__(self):
         return self.name
 
-class Categoria(BaseModel):
+class Category(BaseModel):
     name = models.CharField(max_length=100)
     parent = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='subcategories')
     
@@ -42,7 +42,7 @@ class Product(BaseModel):
     
     
     brand = models.ForeignKey(Brand, on_delete=models.PROTECT, related_name='products')
-    category = models.ForeignKey(Categoria, on_delete=models.PROTECT, related_name='products')
+    category = models.ForeignKey(Category, on_delete=models.PROTECT, related_name='products')
     compatibilities = models.ManyToManyField(VehicleCompatibility, related_name='compatible_products')
     
     def __str__(self):
