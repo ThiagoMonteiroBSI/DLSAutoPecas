@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Brand, Categoria, VehicleCompatibility, Product, ProductImage
+from .models import Brand, Category, VehicleCompatibility, Product, ProductImage
 
 class ProductImageInline(admin.TabularInline):
     model = ProductImage
@@ -15,12 +15,14 @@ class ProductAdmin(admin.ModelAdmin):
 
 
 admin.site.register(Brand)
-admin.site.register(Categoria)
+admin.site.register(Category)
 admin.site.register(VehicleCompatibility)
 
 #RODAR MAKEMIGRATIONS E MIGRATE 
+
 #RODAR COMANDO 
 #pdm add Pillow django-cloudinary-storage cloudinary django-environ
 
-#RODAR COMANDO ABAIXO 
 #pdm add djangorestframework django-cors-headers
+
+#pdm add django-filter
