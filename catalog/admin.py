@@ -26,3 +26,5 @@ admin.site.register(VehicleCompatibility)
 #pdm add djangorestframework django-cors-headers
 
 #pdm add django-filter
+
+#python manage.py startapp orders
