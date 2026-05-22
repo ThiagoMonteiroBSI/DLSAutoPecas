@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     'django_filters',
     'catalog',
     'cloudinary_storage',
+    'orders',
 ]
 
 MIDDLEWARE = [
