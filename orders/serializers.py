@@ -35,3 +35,13 @@ class OrderSerializer(serializers.ModelSerializer):
             )
         
         return order
+
+
+#SImulacao de frete
+class ShippingItemSerializer(serializers.Serializer):
+    product_id = serializers.UUIDField()
+    quantity = serializers.IntegerField(min_value=1)
+
+class ShippingSimulationSerializer(serializers.Serializer):
+    zip_code = serializers.CharField(max_length=9)
+    items = ShippingItemSerializer(many=True)
