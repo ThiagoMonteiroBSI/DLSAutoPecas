@@ -28,3 +28,4 @@ admin.site.register(VehicleCompatibility)
 #pdm add django-filter
 
 #python manage.py startapp orders
+#pdm add djangorestframework-simplejwt

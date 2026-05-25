@@ -5,7 +5,7 @@
 groups = ["default"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:6e3484cdfe8e6f1231956da81822c2e240adbf8ae69e83a04c4c5cad5baf6cf8"
+content_hash = "sha256:690b9a6accbc7443545c5d0f117b73c12f1707c0a12c1f32dd30a06aa1eb920a"
 
 [[metadata.targets]]
 requires_python = ">=3.14"
@@ -178,6 +178,22 @@ files = [
 ]
 
 [[package]]
+name = "djangorestframework-simplejwt"
+version = "5.5.1"
+requires_python = ">=3.9"
+summary = "A minimal JSON Web Token authentication plugin for Django REST Framework"
+groups = ["default"]
+dependencies = [
+    "django>=4.2",
+    "djangorestframework>=3.14",
+    "pyjwt>=1.7.1",
+]
+files = [
+    {file = "djangorestframework_simplejwt-5.5.1-py3-none-any.whl", hash = "sha256:2c30f3707053d384e9f315d11c2daccfcb548d4faa453111ca19a542b732e469"},
+    {file = "djangorestframework_simplejwt-5.5.1.tar.gz", hash = "sha256:e72c5572f51d7803021288e2057afcbd03f17fe11d484096f40a460abc76e87f"},
+]
+
+[[package]]
 name = "idna"
 version = "3.15"
 requires_python = ">=3.8"
@@ -242,6 +258,20 @@ files = [
     {file = "psycopg2_binary-2.9.12-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:527e6342b3e44c2f0544f6b8e927d60de7f163f5723b8f1dfa7d2a84298738cd"},
     {file = "psycopg2_binary-2.9.12-cp314-cp314-win_amd64.whl", hash = "sha256:f12ae41fcafadb39b2785e64a40f9db05d6de2ac114077457e0e7c597f3af980"},
     {file = "psycopg2_binary-2.9.12.tar.gz", hash = "sha256:5ac9444edc768c02a6b6a591f070b8aae28ff3a99be57560ac996001580f294c"},
+]
+
+[[package]]
+name = "pyjwt"
+version = "2.13.0"
+requires_python = ">=3.9"
+summary = "JSON Web Token implementation in Python"
+groups = ["default"]
+dependencies = [
+    "typing-extensions>=4.0; python_version < \"3.11\"",
+]
+files = [
+    {file = "pyjwt-2.13.0-py3-none-any.whl", hash = "sha256:66adcc2aff09b3f1bbd95fc1e1577df8ac8723c978552fd43304c8a290ac5728"},
+    {file = "pyjwt-2.13.0.tar.gz", hash = "sha256:41571c89ca91598c79e8ef18a2d07367d4810fbbd6f637794879baf1b7703423"},
 ]
 
 [[package]]
