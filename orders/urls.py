@@ -5,4 +5,5 @@ urlpatterns = [
     path('', views.OrderListView.as_view(), name='order-list'),
     path('checkout/', views.CheckoutView.as_view(), name='checkout'),
     path('shipping/simulate/', views.ShippingSimulationView.as_view(), name='shipping-simulate'), 
+    path('webhook/payment/', views.PaymentWebhookView.as_view(), name='payment-webhook'),
 ]
