@@ -1,19 +1,44 @@
-from rest_framework import generics, filters
+from rest_framework import viewsets, filters, generics, permissions
 from django_filters.rest_framework import DjangoFilterBackend
-from .models import Product
-from .serializers import ProductListSerializer, ProductDetailSerializer
+from django.contrib.auth.models import User
+from .models import Product, Brand, Category, ProductImage
+from .serializers import (
+    ProductListSerializer, ProductDetailSerializer, BrandSerializer, 
+    CategorySerializer, ProductImageSerializer, UserSerializer, RegisterSerializer
+)
 
-class ProductDetailView(generics.RetrieveAPIView):
-    queryset = Product.objects.all()
-    serializer_class = ProductDetailSerializer
-    lookup_field = 'id' #Procurar o produto pelo id
+class UserMeView(generics.RetrieveAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = UserSerializer
 
-class ProductListView(generics.ListAPIView):
+    def get_object(self):
+        return self.request.user
+
+class RegisterView(generics.CreateAPIView):
+    queryset = User.objects.all()
+    permission_classes = [permissions.AllowAny]
+    serializer_class = RegisterSerializer
+
+class BrandViewSet(viewsets.ModelViewSet):
+    queryset = Brand.objects.all()
+    serializer_class = BrandSerializer
+
+class CategoryViewSet(viewsets.ModelViewSet):
+    queryset = Category.objects.all()
+    serializer_class = CategorySerializer
+
+class ProductImageViewSet(viewsets.ModelViewSet):
+    queryset = ProductImage.objects.all()
+    serializer_class = ProductImageSerializer
+
+class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.all().order_by('-created_at')
-    serializer_class = ProductListSerializer
-    #FILTROS
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     search_fields = ['name', 'sku', 'oem_code']
     filterset_fields = ['brand', 'category']
+    lookup_field = 'id'
 
-    
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return ProductListSerializer
+        return ProductDetailSerializer
