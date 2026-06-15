@@ -1,0 +1,10 @@
+pdm add Pillow django-cloudinary-storage cloudinary django-environ
+
+pdm add djangorestframework django-cors-headers
+
+pdm add django-filter
+
+pdm add djangorestframework-simplejwt
+
+pdm add gunicorn whitenoise dj-database-url psycopg2-binary
+
