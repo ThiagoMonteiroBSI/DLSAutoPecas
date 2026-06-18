@@ -8,3 +8,5 @@ pdm add djangorestframework-simplejwt
 
 pdm add gunicorn whitenoise dj-database-url psycopg2-binary
 
+romando para rodar no render
+gunicorn setup.wsgi:application
