@@ -154,3 +154,5 @@ CORS_ALLOWED_ORIGINS = [
     #TODO:
     # "https://www.dlsautopecas.com.br",
 ]
+
+#teste para ver se o render roda com uma nova atualizção
