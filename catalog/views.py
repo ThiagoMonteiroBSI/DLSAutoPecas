@@ -74,3 +74,24 @@ class ProductViewSet(viewsets.ModelViewSet):
             permission_classes = [permissions.IsAdminUser]
             
         return [permission() for permission in permission_classes]
+
+    def create(self, request, *args, **kwargs):
+        response = super().create(request, *args, **kwargs)
+        product = Product.objects.get(id=response.data['id'])
+        images = request.FILES.getlist('uploaded_images')
+        
+        for index, image in enumerate(images):
+            ProductImage.objects.create(product=product, image=image, is_main=(index == 0))
+            
+        return response
+
+    def update(self, request, *args, **kwargs):
+        response = super().update(request, *args, **kwargs)
+        product = self.get_object()
+        images = request.FILES.getlist('uploaded_images')
+        
+        for image in images:
+            has_main = product.images.filter(is_main=True).exists()
+            ProductImage.objects.create(product=product, image=image, is_main=not has_main)
+            
+        return response
