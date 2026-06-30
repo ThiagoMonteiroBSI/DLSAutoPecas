@@ -162,3 +162,4 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 #TESTEANDO BACKEND RENDER
+#teste para ver se o render roda com uma nova atualizção
