@@ -13,5 +13,6 @@ urlpatterns = [
     path('auth/register/', views.RegisterView.as_view(), name='auth_register'),
     path('dashboard/resumo/', views.DashboardResumoView.as_view(), name='dashboard_resumo'),
     path('customers/', views.CustomerListView.as_view(), name='customer_list'),
+    path('customers/<str:pk>/', views.CustomerDetailView.as_view(), name='customer_detail'),
     path('', include(router.urls)),
 ]

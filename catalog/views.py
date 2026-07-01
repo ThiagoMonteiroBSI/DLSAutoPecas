@@ -129,7 +129,7 @@ class CustomerListView(APIView):
         for u in usuarios:
             nome_completo = f"{u.first_name} {u.last_name}".strip() or u.username
             clientes_dict[u.email] = {
-                'id': u.id,
+                'id': str(u.id),
                 'nome': nome_completo,
                 'email': u.email,
                 'is_active': u.is_active,
@@ -164,3 +164,72 @@ class CustomerListView(APIView):
         resultados.sort(key=lambda x: x['data_cadastro'], reverse=True)
         
         return Response(resultados)
+
+    def post(self, request):
+        nome = request.data.get('nome', '')
+        email = request.data.get('email', '')
+        
+        if not email:
+            return Response({"erro": "E-mail é obrigatório"}, status=400)
+            
+        if User.objects.filter(email=email).exists():
+            return Response({"erro": "Este e-mail já está cadastrado"}, status=400)
+            
+        nomes = nome.split(' ', 1)
+        first_name = nomes[0]
+        last_name = nomes[1] if len(nomes) > 1 else ''
+        
+        user = User.objects.create(
+            username=email,
+            email=email,
+            first_name=first_name,
+            last_name=last_name,
+            is_active=True
+        )
+        user.set_unusable_password()
+        user.save()
+        
+        return Response({"mensagem": "Cliente adicionado com sucesso"})
+
+
+class CustomerDetailView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def put(self, request, pk):
+        nome = request.data.get('nome', '')
+        cpf = request.data.get('cpf', '')
+        status_req = request.data.get('status', 'active')
+        
+        if str(pk).isdigit():
+            try:
+                user = User.objects.get(id=pk)
+                nomes = nome.split(' ', 1)
+                user.first_name = nomes[0]
+                user.last_name = nomes[1] if len(nomes) > 1 else ''
+                user.is_active = (status_req == 'active')
+                user.save()
+                return Response({"mensagem": "Cliente atualizado com sucesso"})
+            except User.DoesNotExist:
+                return Response({"erro": "Usuário não encontrado"}, status=404)
+        else:
+            try:
+                order = Order.objects.get(id=pk)
+                email = order.customer_email
+                Order.objects.filter(customer_email=email).update(
+                    customer_name=nome,
+                    customer_cpf=cpf
+                )
+                return Response({"mensagem": "Cliente convidado atualizado"})
+            except Order.DoesNotExist:
+                return Response({"erro": "Convidado não encontrado"}, status=404)
+
+    def delete(self, request, pk):
+        if str(pk).isdigit():
+            try:
+                user = User.objects.get(id=pk)
+                user.delete()
+                return Response({"mensagem": "Cliente excluído com sucesso"})
+            except User.DoesNotExist:
+                return Response({"erro": "Usuário não encontrado"}, status=404)
+        else:
+            return Response({"erro": "Não é possível excluir clientes convidados que possuem vínculos a pedidos."}, status=400)
