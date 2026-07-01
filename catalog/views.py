@@ -6,7 +6,7 @@ from django.contrib.auth.models import User
 from django.db.models import Sum
 
 from .models import Product, Brand, Category, ProductImage
-from orders.models import Order # Certifique-se de que o app orders possui essa model
+from orders.models import Order
 from .serializers import (
     ProductListSerializer, ProductDetailSerializer, BrandSerializer, 
     CategorySerializer, ProductImageSerializer, UserSerializer, RegisterSerializer
@@ -76,35 +76,36 @@ class ProductViewSet(viewsets.ModelViewSet):
             permission_classes = [permissions.IsAdminUser]
         return [permission() for permission in permission_classes]
 
-# --- NOVA VIEW DO DASHBOARD ---
 class DashboardResumoView(APIView):
-    """
-    Endpoint dedicado para fornecer dados sumarizados ao dashboard administrativo.
-    """
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [permissions.AllowAny]
 
     def get(self, request):
-        # 1. Cálculos de Estatísticas Gerais
-        faturamento_dict = Order.objects.filter(status='PAID').aggregate(Sum('total'))
-        faturamento_total = faturamento_dict['total__sum'] or 0.00
-        
-        pedidos_realizados = Order.objects.count()
-        novos_clientes = User.objects.filter(is_staff=False).count()
-        
-        # Filtra por produtos ativos (assumindo que sua model Product tenha o campo 'is_active' ou 'ativo')
-        # Ajuste o nome do campo se necessário na sua model
-        produtos_ativos = Product.objects.filter(is_active=True).count() if hasattr(Product, 'is_active') else Product.objects.count()
+        periodo = request.query_params.get('periodo', 'mes')
+        orders = Order.objects.all()
 
-        # 2. Últimos Pedidos
-        ultimos_pedidos_qs = Order.objects.order_by('-created_at')[:5]
+        faturamento_total = 0.0
+        for order in orders:
+            total_itens = sum(item.quantity * item.unit_price for item in order.items.all())
+            faturamento_total += float(total_itens) + float(order.shipping_fee)
+
+        pedidos_realizados = orders.count()
+        novos_clientes = User.objects.filter(is_staff=False).count()
+        produtos_ativos = Product.objects.count()
+
+        ultimos_pedidos_qs = orders.order_by('-created_at')[:5]
         ultimos_pedidos = []
+        
         for pedido in ultimos_pedidos_qs:
+            total_itens = sum(item.quantity * item.unit_price for item in pedido.items.all())
+            total_pedido = float(total_itens) + float(pedido.shipping_fee)
+            
             ultimos_pedidos.append({
-                'id': pedido.id,
-                'cliente_nome': pedido.user.username if pedido.user else "Convidado",
+                'id': str(pedido.id),
+                'cliente_nome': pedido.customer_name,
                 'data_criacao': pedido.created_at,
                 'status': pedido.status,
-                'total': float(pedido.total) if hasattr(pedido, 'total') else 0
+                'status_display': pedido.get_status_display(),
+                'total': total_pedido
             })
 
         return Response({
@@ -115,5 +116,51 @@ class DashboardResumoView(APIView):
                 'produtos_ativos': produtos_ativos
             },
             'ultimos_pedidos': ultimos_pedidos,
-            'produtos_mais_vendidos': [] # TODO: Implementar lógica de agregação de vendas no futuro
+            'produtos_mais_vendidos': []
         })
+
+class CustomerListView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        clientes_dict = {}
+        
+        usuarios = User.objects.filter(is_staff=False)
+        for u in usuarios:
+            nome_completo = f"{u.first_name} {u.last_name}".strip() or u.username
+            clientes_dict[u.email] = {
+                'id': u.id,
+                'nome': nome_completo,
+                'email': u.email,
+                'is_active': u.is_active,
+                'data_cadastro': u.date_joined,
+                'total_pedidos': 0,
+                'cpf': '',
+                'telefone': ''
+            }
+            
+        pedidos = Order.objects.all()
+        for p in pedidos:
+            email = p.customer_email
+            if email in clientes_dict:
+                clientes_dict[email]['total_pedidos'] += 1
+                if not clientes_dict[email]['cpf'] and p.customer_cpf:
+                    clientes_dict[email]['cpf'] = p.customer_cpf
+                if not clientes_dict[email]['nome'] or clientes_dict[email]['nome'] == email:
+                    clientes_dict[email]['nome'] = p.customer_name
+            else:
+                clientes_dict[email] = {
+                    'id': str(p.id),
+                    'nome': p.customer_name,
+                    'email': email,
+                    'is_active': True,
+                    'data_cadastro': p.created_at,
+                    'total_pedidos': 1,
+                    'cpf': p.customer_cpf,
+                    'telefone': ''
+                }
+                
+        resultados = list(clientes_dict.values())
+        resultados.sort(key=lambda x: x['data_cadastro'], reverse=True)
+        
+        return Response(resultados)
