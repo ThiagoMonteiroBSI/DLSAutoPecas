@@ -78,41 +78,33 @@ class ProductViewSet(viewsets.ModelViewSet):
 
 # --- NOVA VIEW DO DASHBOARD ---
 class DashboardResumoView(APIView):
-    permission_classes = [AllowAny] # Permissão liberada para facilitar, mude se precisar
+    """
+    Endpoint dedicado para fornecer dados sumarizados ao dashboard administrativo.
+    """
+    permission_classes = [permissions.IsAdminUser]
 
     def get(self, request):
-        periodo = request.query_params.get('periodo', 'mes')
+        # 1. Cálculos de Estatísticas Gerais
+        faturamento_dict = Order.objects.filter(status='PAID').aggregate(Sum('total'))
+        faturamento_total = faturamento_dict['total__sum'] or 0.00
         
-        # Aqui você pode aplicar os filtros de data usando o 'periodo' no futuro.
-        orders = Order.objects.all()
-
-        # 1. Cálculo Seguro do Faturamento Total (Itens + Frete)
-        faturamento_total = 0.0
-        for order in orders:
-            # Multiplica a quantidade pelo preço de cada item vinculado a este pedido
-            total_itens = sum(item.quantity * item.unit_price for item in order.items.all())
-            faturamento_total += float(total_itens) + float(order.shipping_fee)
-
-        # 2. Estatísticas Gerais
-        pedidos_realizados = orders.count()
+        pedidos_realizados = Order.objects.count()
         novos_clientes = User.objects.filter(is_staff=False).count()
-        produtos_ativos = Product.objects.count()
-
-        # 3. Últimos 5 Pedidos Formatados
-        ultimos_pedidos_qs = orders.order_by('-created_at')[:5]
-        ultimos_pedidos = []
         
+        # Filtra por produtos ativos (assumindo que sua model Product tenha o campo 'is_active' ou 'ativo')
+        # Ajuste o nome do campo se necessário na sua model
+        produtos_ativos = Product.objects.filter(is_active=True).count() if hasattr(Product, 'is_active') else Product.objects.count()
+
+        # 2. Últimos Pedidos
+        ultimos_pedidos_qs = Order.objects.order_by('-created_at')[:5]
+        ultimos_pedidos = []
         for pedido in ultimos_pedidos_qs:
-            total_itens = sum(item.quantity * item.unit_price for item in pedido.items.all())
-            total_pedido = float(total_itens) + float(pedido.shipping_fee)
-            
             ultimos_pedidos.append({
-                'id': str(pedido.id),
-                'cliente_nome': pedido.customer_name, # Lendo o campo correto
+                'id': pedido.id,
+                'cliente_nome': pedido.user.username if pedido.user else "Convidado",
                 'data_criacao': pedido.created_at,
                 'status': pedido.status,
-                'status_display': pedido.get_status_display(),
-                'total': total_pedido
+                'total': float(pedido.total) if hasattr(pedido, 'total') else 0
             })
 
         return Response({
@@ -123,5 +115,5 @@ class DashboardResumoView(APIView):
                 'produtos_ativos': produtos_ativos
             },
             'ultimos_pedidos': ultimos_pedidos,
-            'produtos_mais_vendidos': [] # Implementação futura
+            'produtos_mais_vendidos': [] # TODO: Implementar lógica de agregação de vendas no futuro
         })
