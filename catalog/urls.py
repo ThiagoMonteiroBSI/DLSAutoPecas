@@ -11,5 +11,6 @@ router.register(r'images', views.ProductImageViewSet, basename='productimage')
 urlpatterns = [
     path('auth/me/', views.UserMeView.as_view(), name='auth_me'),
     path('auth/register/', views.RegisterView.as_view(), name='auth_register'),
+    path('dashboard/resumo/', views.DashboardResumoView.as_view(), name='dashboard_resumo'),
     path('', include(router.urls)),
 ]
