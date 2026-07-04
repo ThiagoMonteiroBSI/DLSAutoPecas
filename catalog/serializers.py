@@ -69,8 +69,8 @@ class ProductDetailSerializer(serializers.ModelSerializer):
         model = Product
         fields = [
             'id', 'sku', 'oem_code', 'name', 'description', 
-            'price', 'stock', 'weight_kg', 'brand', 'category', 'brand_name', 
-            'category_name', 'images', 'compatibilities'
+            'price', 'stock', 'weight_kg', 'length_cm', 'width_cm', 'height_cm', # <-- Novos campos
+            'brand', 'category', 'brand_name', 'category_name', 'images', 'compatibilities'
         ]
         # REMOVIDO o bloco extra_kwargs daqui
 

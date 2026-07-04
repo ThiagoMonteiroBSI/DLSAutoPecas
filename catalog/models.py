@@ -39,6 +39,10 @@ class Product(BaseModel):
     price = models.DecimalField(max_digits=10, decimal_places=2)
     stock = models.IntegerField(default=0)
     weight_kg = models.DecimalField(max_digits=5, decimal_places=3, default=0.0)
+
+    length_cm = models.DecimalField(max_digits=5, decimal_places=1, default=16.0, help_text="Comprimento (Mínimo 16cm)")
+    width_cm = models.DecimalField(max_digits=5, decimal_places=1, default=11.0, help_text="Largura (Mínimo 11cm)")
+    height_cm = models.DecimalField(max_digits=5, decimal_places=1, default=2.0, help_text="Altura (Mínimo 2cm)")
     
     
     brand = models.ForeignKey(Brand, on_delete=models.PROTECT, related_name='products')
