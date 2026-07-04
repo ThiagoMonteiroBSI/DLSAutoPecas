@@ -54,10 +54,7 @@ class ProductListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Product
         fields = ['id', 'sku', 'name', 'price', 'stock', 'brand', 'category', 'brand_name', 'category_name', 'images']
-        extra_kwargs = {
-            'brand': {'write_only': True},
-            'category': {'write_only': True}
-        }
+        # REMOVIDO o bloco extra_kwargs daqui
 
     def get_category_name(self, obj):
         return str(obj.category)
@@ -75,10 +72,7 @@ class ProductDetailSerializer(serializers.ModelSerializer):
             'price', 'stock', 'weight_kg', 'brand', 'category', 'brand_name', 
             'category_name', 'images', 'compatibilities'
         ]
-        extra_kwargs = {
-            'brand': {'write_only': True},
-            'category': {'write_only': True}
-        }
+        # REMOVIDO o bloco extra_kwargs daqui
 
     def get_category_name(self, obj):
         return str(obj.category)
