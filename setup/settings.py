@@ -161,5 +161,5 @@ CORS_ALLOWED_ORIGINS = [
     # "https://www.dlsautopecas.com.br",
 ]
 
-MELHOR_ENVIO_URL = os.getenv('MELHOR_ENVIO_URL', 'https://sandbox.melhorenvio.com.br')
-MELHOR_ENVIO_TOKEN = os.getenv('MELHOR_ENVIO_TOKEN', '')
+MELHOR_ENVIO_TOKEN = env('MELHOR_ENVIO_TOKEN', default='')
+MELHOR_ENVIO_URL = env('MELHOR_ENVIO_URL', default='https://sandbox.melhorenvio.com.br')
