@@ -161,4 +161,5 @@ CORS_ALLOWED_ORIGINS = [
     # "https://www.dlsautopecas.com.br",
 ]
 
-#TESTEANDO BACKEND RENDER
+MELHOR_ENVIO_URL = os.getenv('MELHOR_ENVIO_URL', 'https://sandbox.melhorenvio.com.br')
+MELHOR_ENVIO_TOKEN = os.getenv('MELHOR_ENVIO_TOKEN', '')
