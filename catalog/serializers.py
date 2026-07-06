@@ -64,49 +64,15 @@ class ProductDetailSerializer(serializers.ModelSerializer):
     category_name = serializers.SerializerMethodField()
     images = ProductImageSerializer(many=True, read_only=True)
     compatibilities = VehicleCompatibilitySerializer(many=True, read_only=True)
-    # Campo write-only usado pelo formulário de admin (FormData.append('uploaded_images', file)).
-    # Sem ele, o DRF ignora silenciosamente os arquivos enviados e nenhuma ProductImage é criada.
-    uploaded_images = serializers.ListField(
-        child=serializers.ImageField(),
-        write_only=True,
-        required=False,
-        allow_empty=True
-    )
 
     class Meta:
         model = Product
         fields = [
             'id', 'sku', 'oem_code', 'name', 'description', 
             'price', 'stock', 'weight_kg', 'length_cm', 'width_cm', 'height_cm', # <-- Novos campos
-            'brand', 'category', 'brand_name', 'category_name', 'images', 'compatibilities',
-            'uploaded_images'
+            'brand', 'category', 'brand_name', 'category_name', 'images', 'compatibilities'
         ]
         # REMOVIDO o bloco extra_kwargs daqui
 
     def get_category_name(self, obj):
         return str(obj.category)
-
-    def create(self, validated_data):
-        uploaded_images = validated_data.pop('uploaded_images', [])
-        product = Product.objects.create(**validated_data)
-        for index, image_file in enumerate(uploaded_images):
-            ProductImage.objects.create(
-                product=product,
-                image=image_file,
-                is_main=(index == 0)
-            )
-        return product
-
-    def update(self, instance, validated_data):
-        uploaded_images = validated_data.pop('uploaded_images', [])
-        instance = super().update(instance, validated_data)
-
-        if uploaded_images:
-            has_main_image = instance.images.filter(is_main=True).exists()
-            for index, image_file in enumerate(uploaded_images):
-                ProductImage.objects.create(
-                    product=instance,
-                    image=image_file,
-                    is_main=(not has_main_image and index == 0)
-                )
-        return instance
