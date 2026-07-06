@@ -74,5 +74,27 @@ class ProductDetailSerializer(serializers.ModelSerializer):
         ]
         # REMOVIDO o bloco extra_kwargs daqui
 
-    def get_category_name(self, obj):
-        return str(obj.category)
+    def create(self, validated_data):
+        # 1. Cria o produto normalmente com os dados de texto
+        product = Product.objects.create(**validated_data)
+        
+        # 2. Captura a lista de arquivos físicos que o Vue enviou
+        images_data = self.context['request'].FILES.getlist('uploaded_images')
+        
+        # 3. Salva cada imagem vinculada ao produto recém-criado
+        for image in images_data:
+            ProductImage.objects.create(product=product, image=image)
+            
+        return product
+
+    def update(self, instance, validated_data):
+        # 1. Atualiza os textos do produto
+        instance = super().update(instance, validated_data)
+        
+        # 2. Captura novas imagens, se houver
+        images_data = self.context['request'].FILES.getlist('uploaded_images')
+        
+        for image in images_data:
+            ProductImage.objects.create(product=instance, image=image)
+            
+        return instance
