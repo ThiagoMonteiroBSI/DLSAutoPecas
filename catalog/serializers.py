@@ -65,14 +65,53 @@ class ProductDetailSerializer(serializers.ModelSerializer):
     images = ProductImageSerializer(many=True, read_only=True)
     compatibilities = VehicleCompatibilitySerializer(many=True, read_only=True)
 
+    # Campo write-only: recebe os arquivos enviados pelo formulário do site
+    # (frontend faz data.append('uploaded_images', file) para cada imagem).
+    # Sem esse campo, o DRF ignora silenciosamente os arquivos multipart,
+    # já que 'uploaded_images' não corresponde a nenhum campo do model Product.
+    uploaded_images = serializers.ListField(
+        child=serializers.ImageField(),
+        write_only=True,
+        required=False
+    )
+
     class Meta:
         model = Product
         fields = [
             'id', 'sku', 'oem_code', 'name', 'description', 
             'price', 'stock', 'weight_kg', 'length_cm', 'width_cm', 'height_cm', # <-- Novos campos
-            'brand', 'category', 'brand_name', 'category_name', 'images', 'compatibilities'
+            'brand', 'category', 'brand_name', 'category_name', 'images', 'compatibilities',
+            'uploaded_images',
         ]
         # REMOVIDO o bloco extra_kwargs daqui
 
     def get_category_name(self, obj):
         return str(obj.category)
+
+    def create(self, validated_data):
+        images_data = validated_data.pop('uploaded_images', [])
+        product = Product.objects.create(**validated_data)
+        self._create_images(product, images_data)
+        return product
+
+    def update(self, instance, validated_data):
+        images_data = validated_data.pop('uploaded_images', [])
+        instance = super().update(instance, validated_data)
+        self._create_images(instance, images_data)
+        return instance
+
+    def _create_images(self, product, images_data):
+        if not images_data:
+            return
+
+        # Se o produto ainda não tem nenhuma imagem, a primeira enviada
+        # agora vira a imagem principal (is_main=True)
+        has_existing_images = product.images.exists()
+
+        for index, image_file in enumerate(images_data):
+            is_main = (not has_existing_images) and (index == 0)
+            ProductImage.objects.create(
+                product=product,
+                image=image_file,
+                is_main=is_main
+            )
