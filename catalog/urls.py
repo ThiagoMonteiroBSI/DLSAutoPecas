@@ -14,5 +14,6 @@ urlpatterns = [
     path('dashboard/resumo/', views.DashboardResumoView.as_view(), name='dashboard_resumo'),
     path('customers/', views.CustomerListView.as_view(), name='customer_list'),
     path('customers/<str:pk>/', views.CustomerDetailView.as_view(), name='customer_detail'),
+    path('auth/google/', views.GoogleLoginView.as_view(), name='google_login'),
     path('', include(router.urls)),
 ]

@@ -16,7 +16,7 @@ APAGAR COMANDO ABAIXO
 
 postgresql://dls_auto_pecas_db_user:2n0OdFSdJqk9e1dfiAU9HtPZgkbsbvFO@dpg-d8q7neok1i2s73fsnpmg-a/dls_auto_pecas_db
 
-
+pip install google-auth
 SENHA WEBSERVICE RENDER - APAGAR DEPOIS 
 
 662$$a9PffFk

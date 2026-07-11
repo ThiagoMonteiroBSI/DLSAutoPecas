@@ -4,6 +4,11 @@ from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from django.contrib.auth.models import User
 from django.db.models import Sum
+#autenticacao google 
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework import status
 
 from .models import Product, Brand, Category, ProductImage
 from orders.models import Order
@@ -254,3 +259,60 @@ class CustomerDetailView(APIView):
                 return Response({"erro": "Usuário não encontrado"}, status=404)
         else:
             return Response({"erro": "Não é possível excluir clientes convidados que possuem vínculos a pedidos."}, status=400)
+        
+
+class GoogleLoginView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        token = request.data.get('token')
+        
+        if not token:
+            return Response({"erro": "Token não fornecido."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            # 1. Validar o token direto com os servidores do Google usando o ID do settings
+            idinfo = id_token.verify_oauth2_token(
+                token, 
+                google_requests.Request(), 
+                settings.GOOGLE_CLIENT_ID
+            )
+
+            # 2. Extrair os dados do cliente
+            email = idinfo.get('email')
+            first_name = idinfo.get('given_name', '')
+            last_name = idinfo.get('family_name', '')
+
+            if not email:
+                return Response({"erro": "O token não contém um e-mail válido."}, status=status.HTTP_400_BAD_REQUEST)
+
+            # 3. Buscar o usuário no banco ou criar um novo
+            user, created = User.objects.get_or_create(email=email, defaults={
+                'username': email,
+                'first_name': first_name,
+                'last_name': last_name,
+                'is_active': True
+            })
+
+            # Se for um usuário novo, embaralhamos a senha (ele só logará via Google ou pedindo reset)
+            if created:
+                user.set_unusable_password()
+                user.save()
+
+            # 4. Gerar o NOSSO Token JWT (Access e Refresh) para a loja
+            refresh = RefreshToken.for_user(user)
+
+            return Response({
+                'access': str(refresh.access_token),
+                'refresh': str(refresh),
+                'user': {
+                    'id': user.id,
+                    'email': user.email,
+                    'first_name': user.first_name,
+                    'last_name': user.last_name,
+                }
+            }, status=status.HTTP_200_OK)
+
+        except ValueError:
+            # Cai aqui se o token for falso, malformado ou estiver expirado
+            return Response({"erro": "Token do Google inválido ou expirado."}, status=status.HTTP_401_UNAUTHORIZED)
