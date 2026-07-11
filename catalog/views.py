@@ -5,10 +5,15 @@ from django_filters.rest_framework import DjangoFilterBackend
 from django.contrib.auth.models import User
 from django.db.models import Sum
 #autenticacao google 
-from google.oauth2 import id_token
+from django.conf import settings
+from django.contrib.auth.models import User           # O Modelo de Usuário padrão do Django
+from rest_framework.views import APIView               # A Classe Base para a View da API
+from rest_framework.response import Response           # O Objeto de Resposta da API
+from rest_framework import permissions, status         # Permissões e Status HTTP
+from rest_framework_simplejwt.tokens import RefreshToken  # Biblioteca SimpleJWT para gerar o token do e-commerce
+from google.oauth2 import id_token                     # Biblioteca do Google para validar o Token
 from google.auth.transport import requests as google_requests
-from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework import status
+
 
 from .models import Product, Brand, Category, ProductImage
 from orders.models import Order
@@ -262,46 +267,66 @@ class CustomerDetailView(APIView):
         
 
 class GoogleLoginView(APIView):
+    # AllowAny garante que qualquer cliente (mesmo deslogado) consiga acessar essa rota
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
+        # O Front-end (Vue) deve enviar um JSON contendo {"token": "XYZ..."}
         token = request.data.get('token')
         
         if not token:
-            return Response({"erro": "Token não fornecido."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"erro": "Token do Google não foi fornecido pelo front-end."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         try:
-            # 1. Validar o token direto com os servidores do Google usando o ID do settings
+            # 1. Validar o token recebido diretamente com os servidores do Google
             idinfo = id_token.verify_oauth2_token(
                 token, 
                 google_requests.Request(), 
                 settings.GOOGLE_CLIENT_ID
             )
 
-            # 2. Extrair os dados do cliente
+            # 2. Extrair as informações públicas que o Google retornou sobre o cliente
             email = idinfo.get('email')
             first_name = idinfo.get('given_name', '')
             last_name = idinfo.get('family_name', '')
 
             if not email:
-                return Response({"erro": "O token não contém um e-mail válido."}, status=status.HTTP_400_BAD_REQUEST)
+                return Response(
+                    {"erro": "O token do Google é válido, mas não contém um e-mail cadastrado."}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
-            # 3. Buscar o usuário no banco ou criar um novo
-            user, created = User.objects.get_or_create(email=email, defaults={
-                'username': email,
-                'first_name': first_name,
-                'last_name': last_name,
-                'is_active': True
-            })
-
-            # Se for um usuário novo, embaralhamos a senha (ele só logará via Google ou pedindo reset)
-            if created:
+            # 3. Localizar ou Criar o Usuário no banco de dados com segurança
+            try:
+                # Primeiro tentamos buscar se o e-mail já existe no banco
+                user = User.objects.get(email=email)
+            except User.DoesNotExist:
+                # Se não existir, criamos um novo usuário
+                # Definimos o username inicial igual ao e-mail do cliente
+                username = email
+                
+                # Proteção extrema: Se por acaso o username já existir por outro motivo, geramos um sufixo numérico
+                if User.objects.filter(username=username).exists():
+                    username = f"{email.split('@')[0]}_{User.objects.count() + 1}"
+                
+                # Criação oficial do registro no PostgreSQL
+                user = User.objects.create_user(
+                    username=username,
+                    email=email,
+                    first_name=first_name,
+                    last_name=last_name
+                )
+                # Como ele logou pelo Google, desabilitamos a senha comum para proteger a conta
                 user.set_unusable_password()
                 user.save()
 
-            # 4. Gerar o NOSSO Token JWT (Access e Refresh) para a loja
+            # 4. Gerar as credenciais de acesso da sua própria loja (SimpleJWT)
             refresh = RefreshToken.for_user(user)
 
+            # Retorna o payload completo exato que a sua aplicação precisa para autenticar o cliente
             return Response({
                 'access': str(refresh.access_token),
                 'refresh': str(refresh),
@@ -314,5 +339,14 @@ class GoogleLoginView(APIView):
             }, status=status.HTTP_200_OK)
 
         except ValueError:
-            # Cai aqui se o token for falso, malformado ou estiver expirado
-            return Response({"erro": "Token do Google inválido ou expirado."}, status=status.HTTP_401_UNAUTHORIZED)
+            # Se o token enviado for forjado, adulterado ou tiver expirado
+            return Response(
+                {"erro": "O token enviado é inválido ou já expirou no Google."}, 
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        except Exception as e:
+            # Captura qualquer erro inesperado do servidor para não quebrar a API sem dar aviso
+            return Response(
+                {"erro": f"Erro interno no servidor de autopeças: {str(e)}"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
