@@ -76,6 +76,27 @@ class ProductViewSet(viewsets.ModelViewSet):
             permission_classes = [permissions.IsAdminUser]
         return [permission() for permission in permission_classes]
 
+    def perform_create(self, serializer):
+        product = serializer.save()
+        images = self.request.FILES.getlist('uploaded_images')
+        for index, image in enumerate(images):
+            ProductImage.objects.create(
+                product=product,
+                image=image,
+                is_main=(index == 0)
+            )
+
+    def perform_update(self, serializer):
+        product = serializer.save()
+        images = self.request.FILES.getlist('uploaded_images')
+        for image in images:
+            has_main = product.images.filter(is_main=True).exists()
+            ProductImage.objects.create(
+                product=product,
+                image=image,
+                is_main=not has_main
+            )
+
 class DashboardResumoView(APIView):
     permission_classes = [permissions.AllowAny]
 
