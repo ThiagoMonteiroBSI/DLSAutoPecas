@@ -11,9 +11,9 @@ router.register(r'images', views.ProductImageViewSet, basename='productimage')
 urlpatterns = [
     path('auth/me/', views.UserMeView.as_view(), name='auth_me'),
     path('auth/register/', views.RegisterView.as_view(), name='auth_register'),
+    path('auth/google/', views.GoogleLoginView.as_view(), name='auth_google'),  # Login com Google (Passo 2)
     path('dashboard/resumo/', views.DashboardResumoView.as_view(), name='dashboard_resumo'),
     path('customers/', views.CustomerListView.as_view(), name='customer_list'),
     path('customers/<str:pk>/', views.CustomerDetailView.as_view(), name='customer_detail'),
-    path('auth/google/', views.GoogleLoginView.as_view(), name='google_login'),
     path('', include(router.urls)),
 ]

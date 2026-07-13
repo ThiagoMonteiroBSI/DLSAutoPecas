@@ -1,25 +1,21 @@
-from rest_framework import viewsets, filters, generics, permissions
+from rest_framework import viewsets, filters, generics, permissions, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework_simplejwt.tokens import RefreshToken
 from django_filters.rest_framework import DjangoFilterBackend
 from django.contrib.auth.models import User
 from django.db.models import Sum
-#autenticacao google 
 from django.conf import settings
-from django.contrib.auth.models import User           # O Modelo de Usuário padrão do Django
-from rest_framework.views import APIView               # A Classe Base para a View da API
-from rest_framework.response import Response           # O Objeto de Resposta da API
-from rest_framework import permissions, status         # Permissões e Status HTTP
-from rest_framework_simplejwt.tokens import RefreshToken  # Biblioteca SimpleJWT para gerar o token do e-commerce
-from google.oauth2 import id_token                     # Biblioteca do Google para validar o Token
-from google.auth.transport import requests as google_requests
 
+from google.oauth2 import id_token as google_id_token
+from google.auth.transport import requests as google_requests
 
 from .models import Product, Brand, Category, ProductImage
 from orders.models import Order
 from .serializers import (
     ProductListSerializer, ProductDetailSerializer, BrandSerializer, 
-    CategorySerializer, ProductImageSerializer, UserSerializer, RegisterSerializer
+    CategorySerializer, ProductImageSerializer, UserSerializer, RegisterSerializer,
+    GoogleAuthSerializer
 )
 
 class UserMeView(generics.RetrieveAPIView):
@@ -33,6 +29,66 @@ class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
     permission_classes = [permissions.AllowAny]
     serializer_class = RegisterSerializer
+
+# --- Login com Google (Passo 2) ---
+class GoogleLoginView(APIView):
+    """
+    Login/cadastro via Google. Recebe o ID Token gerado pelo Google Identity
+    Services no frontend, valida a assinatura com a biblioteca oficial do
+    Google (google-auth) e cria — ou reaproveita, casando por e-mail — o
+    usuário no banco, para que ele apareça no painel administrativo igual
+    a qualquer outro cliente. Retorna access/refresh no mesmo formato do
+    TokenObtainPairView, para reaproveitar o fluxo de login já existente
+    no frontend.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        serializer = GoogleAuthSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            idinfo = google_id_token.verify_oauth2_token(
+                serializer.validated_data['id_token'],
+                google_requests.Request(),
+                settings.GOOGLE_CLIENT_ID,
+            )
+        except ValueError:
+            # Assinatura inválida, token expirado ou audience errada
+            return Response(
+                {'error': 'Token do Google inválido ou expirado.'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        if not idinfo.get('email_verified'):
+            return Response(
+                {'error': 'O e-mail dessa conta Google não está verificado.'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        email = idinfo['email']
+
+        # Mesmo padrão já usado em CustomerListView.post(): username = email
+        # e set_unusable_password() para contas sem senha tradicional.
+        # get_or_create casa por e-mail, então quem já tinha conta criada
+        # com e-mail/senha reaproveita a mesma conta ao logar via Google.
+        user, created = User.objects.get_or_create(
+            email=email,
+            defaults={
+                'username': email,
+                'first_name': idinfo.get('given_name', ''),
+                'last_name': idinfo.get('family_name', ''),
+            }
+        )
+        if created:
+            user.set_unusable_password()
+            user.save()
+
+        refresh = RefreshToken.for_user(user)
+        return Response({
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
+        })
 
 class BrandViewSet(viewsets.ModelViewSet):
     queryset = Brand.objects.all()
@@ -264,89 +320,3 @@ class CustomerDetailView(APIView):
                 return Response({"erro": "Usuário não encontrado"}, status=404)
         else:
             return Response({"erro": "Não é possível excluir clientes convidados que possuem vínculos a pedidos."}, status=400)
-        
-
-class GoogleLoginView(APIView):
-    # AllowAny garante que qualquer cliente (mesmo deslogado) consiga acessar essa rota
-    permission_classes = [permissions.AllowAny]
-
-    def post(self, request):
-        # O Front-end (Vue) deve enviar um JSON contendo {"token": "XYZ..."}
-        token = request.data.get('token')
-        
-        if not token:
-            return Response(
-                {"erro": "Token do Google não foi fornecido pelo front-end."}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        try:
-            # 1. Validar o token recebido diretamente com os servidores do Google
-            idinfo = id_token.verify_oauth2_token(
-                token, 
-                google_requests.Request(), 
-                settings.GOOGLE_CLIENT_ID
-            )
-
-            # 2. Extrair as informações públicas que o Google retornou sobre o cliente
-            email = idinfo.get('email')
-            first_name = idinfo.get('given_name', '')
-            last_name = idinfo.get('family_name', '')
-
-            if not email:
-                return Response(
-                    {"erro": "O token do Google é válido, mas não contém um e-mail cadastrado."}, 
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            # 3. Localizar ou Criar o Usuário no banco de dados com segurança
-            try:
-                # Primeiro tentamos buscar se o e-mail já existe no banco
-                user = User.objects.get(email=email)
-            except User.DoesNotExist:
-                # Se não existir, criamos um novo usuário
-                # Definimos o username inicial igual ao e-mail do cliente
-                username = email
-                
-                # Proteção extrema: Se por acaso o username já existir por outro motivo, geramos um sufixo numérico
-                if User.objects.filter(username=username).exists():
-                    username = f"{email.split('@')[0]}_{User.objects.count() + 1}"
-                
-                # Criação oficial do registro no PostgreSQL
-                user = User.objects.create_user(
-                    username=username,
-                    email=email,
-                    first_name=first_name,
-                    last_name=last_name
-                )
-                # Como ele logou pelo Google, desabilitamos a senha comum para proteger a conta
-                user.set_unusable_password()
-                user.save()
-
-            # 4. Gerar as credenciais de acesso da sua própria loja (SimpleJWT)
-            refresh = RefreshToken.for_user(user)
-
-            # Retorna o payload completo exato que a sua aplicação precisa para autenticar o cliente
-            return Response({
-                'access': str(refresh.access_token),
-                'refresh': str(refresh),
-                'user': {
-                    'id': user.id,
-                    'email': user.email,
-                    'first_name': user.first_name,
-                    'last_name': user.last_name,
-                }
-            }, status=status.HTTP_200_OK)
-
-        except ValueError:
-            # Se o token enviado for forjado, adulterado ou tiver expirado
-            return Response(
-                {"erro": "O token enviado é inválido ou já expirou no Google."}, 
-                status=status.HTTP_401_UNAUTHORIZED
-            )
-        except Exception as e:
-            # Captura qualquer erro inesperado do servidor para não quebrar a API sem dar aviso
-            return Response(
-                {"erro": f"Erro interno no servidor de autopeças: {str(e)}"}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )

@@ -10,7 +10,6 @@ environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
 
 SECRET_KEY = env('SECRET_KEY')
 DEBUG = env('DEBUG')
-GOOGLE_CLIENT_ID = env('GOOGLE_CLIENT_ID', default='643594340805-38qisrhrs767nd57noha1ooick4bv762.apps.googleusercontent.com')
 
 ALLOWED_HOSTS = ['localhost', '127.0.0.1', env('RENDER_EXTERNAL_HOSTNAME', default='')]
 
@@ -164,3 +163,5 @@ CORS_ALLOWED_ORIGINS = [
 
 MELHOR_ENVIO_TOKEN = env('MELHOR_ENVIO_TOKEN', default='')
 MELHOR_ENVIO_URL = env('MELHOR_ENVIO_URL', default='https://sandbox.melhorenvio.com.br')
+
+GOOGLE_CLIENT_ID = env('GOOGLE_CLIENT_ID')

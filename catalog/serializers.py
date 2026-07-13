@@ -26,6 +26,13 @@ class RegisterSerializer(serializers.ModelSerializer):
         )
         return user
 
+# --- Login com Google (Passo 2) ---
+class GoogleAuthSerializer(serializers.Serializer):
+    """Valida a entrada da GoogleLoginView: só o ID Token gerado pelo
+    Google Identity Services no frontend. Não tem Meta/model porque não
+    serializa um objeto — é só validação do payload de entrada."""
+    id_token = serializers.CharField(required=True)
+
 class BrandSerializer(serializers.ModelSerializer):
     class Meta:
         model = Brand
