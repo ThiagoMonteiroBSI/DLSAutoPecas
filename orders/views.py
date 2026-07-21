@@ -133,37 +133,39 @@ class ShippingSimulationView(APIView):
 
 class PaymentWebhookView(APIView):
     """
-    Webhook para recebimento de atualizações de pagamento.
-    IMPORTANTE: Em produção, verifique o cabeçalho 'x-webhook-signature' 
-    para garantir que a requisição veio realmente do gateway de pagamento.
+    ATENÇÃO: estou presumindo que o webhook envia a mesma estrutura de
+    "attributes" que aparece no retorno de criação/consulta de pagamento
+    (resource "transactions"). Ainda não vi a doc de Webhooks confirmando
+    isso — se o payload real vier diferente, ajustamos aqui.
     """
     permission_classes = [AllowAny]
 
+    # Código iPag -> status do seu Order (models.py só tem PENDING/PAID/SHIPPED/DELIVERED/CANCELED)
+    STATUS_MAP = {
+        8: 'PAID',       # CAPTURED
+        6: 'PAID',       # PARTIAL_CAPTURED
+        7: 'CANCELED',   # DECLINED
+        3: 'CANCELED',   # CANCELED
+        9: 'CANCELED',   # CHARGEBACK (não existe status próprio pra isso ainda no seu model)
+    }
+
     def post(self, request):
         payload = request.data
+        attributes = payload.get('attributes', payload)
+        order_id = attributes.get('order_id')
+        status_code = attributes.get('status', {}).get('code')
 
-        order_id = payload.get('reference_id') 
-        payment_status = payload.get('status') 
-
-        # Blindagem 1: Payload incompleto
-        if not order_id or not payment_status:
+        if not order_id or status_code is None:
             return Response({"error": "Payload inválido. Faltam parâmetros obrigatórios."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Blindagem 2: Tratamento de exceção para pedidos inexistentes
         try:
             order = Order.objects.get(id=order_id)
-
-            status_upper = str(payment_status).upper()
-            if status_upper in ['CONFIRMED', 'RECEIVED', 'PAID']:
-                order.status = 'PAID'
-            elif status_upper in ['REFUNDED', 'CANCELED']:
-                order.status = 'CANCELED'
-            
-            order.save()
+            new_status = self.STATUS_MAP.get(status_code)
+            if new_status:
+                order.status = new_status
+                order.save()
             return Response({"message": "Webhook recebido e processado com sucesso."}, status=status.HTTP_200_OK)
-
         except Order.DoesNotExist:
-            return Response({"error": f"Pedido referenciado ({order_id}) não encontrado no banco de dados."}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            # Fallback seguro para não travar gateways que realizam retries se receberem erro 500 sem tratamento
+            return Response({"error": f"Pedido referenciado ({order_id}) não encontrado."}, status=status.HTTP_404_NOT_FOUND)
+        except Exception:
             return Response({"error": "Erro interno ao processar o webhook."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

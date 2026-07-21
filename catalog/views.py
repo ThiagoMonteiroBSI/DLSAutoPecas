@@ -32,15 +32,7 @@ class RegisterView(generics.CreateAPIView):
 
 # --- Login com Google (Passo 2) ---
 class GoogleLoginView(APIView):
-    """
-    Login/cadastro via Google. Recebe o ID Token gerado pelo Google Identity
-    Services no frontend, valida a assinatura com a biblioteca oficial do
-    Google (google-auth) e cria — ou reaproveita, casando por e-mail — o
-    usuário no banco, para que ele apareça no painel administrativo igual
-    a qualquer outro cliente. Retorna access/refresh no mesmo formato do
-    TokenObtainPairView, para reaproveitar o fluxo de login já existente
-    no frontend.
-    """
+
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
@@ -54,7 +46,7 @@ class GoogleLoginView(APIView):
                 settings.GOOGLE_CLIENT_ID,
             )
         except ValueError:
-            # Assinatura inválida, token expirado ou audience errada
+
             return Response(
                 {'error': 'Token do Google inválido ou expirado.'},
                 status=status.HTTP_401_UNAUTHORIZED
@@ -68,10 +60,6 @@ class GoogleLoginView(APIView):
 
         email = idinfo['email']
 
-        # Mesmo padrão já usado em CustomerListView.post(): username = email
-        # e set_unusable_password() para contas sem senha tradicional.
-        # get_or_create casa por e-mail, então quem já tinha conta criada
-        # com e-mail/senha reaproveita a mesma conta ao logar via Google.
         user, created = User.objects.get_or_create(
             email=email,
             defaults={

@@ -1,0 +1,101 @@
+import requests
+from django.conf import settings
+
+# Doc: "Status da Transação"
+IPAG_STATUS = {
+    1: 'CREATED',
+    2: 'WAITING_PAYMENT',
+    3: 'CANCELED',
+    4: 'IN_ANALYSIS',
+    5: 'PRE_AUTHORIZED',
+    6: 'PARTIAL_CAPTURED',
+    7: 'DECLINED',
+    8: 'CAPTURED',
+    9: 'CHARGEBACK',
+    10: 'IN_DISPUTE',
+}
+
+
+class IpagService:
+    BASE_URL = settings.IPAG_BASE_URL
+
+    @classmethod
+    def _headers(cls):
+        return {'Content-Type': 'application/json', 'x-api-version': '2'}
+
+    @classmethod
+    def _auth(cls):
+        return (settings.IPAG_API_ID, settings.IPAG_API_KEY)
+
+    @classmethod
+    def _calculate_total(cls, order):
+        # Mesma conta que o OrderSerializer.get_total() já faz
+        items_total = sum(item.quantity * item.unit_price for item in order.items.all())
+        return float(items_total + order.shipping_fee)
+
+    @classmethod
+    def _build_products(cls, order):
+        return [
+            {
+                'name': item.product.name,
+                'description': (item.product.description or item.product.name)[:255],
+                'unit_price': float(item.unit_price),
+                'quantity': item.quantity,
+                'sku': item.product.sku,
+            }
+            for item in order.items.all()
+        ]
+
+    @classmethod
+    def _post(cls, path, payload):
+        response = requests.post(
+            f'{cls.BASE_URL}{path}', json=payload,
+            headers=cls._headers(), auth=cls._auth(), timeout=15,
+        )
+        response.raise_for_status()
+        return response.json()
+
+    @classmethod
+    def create_card_payment(cls, order, card_data, installments=1, capture=True):
+        payload = {
+            'amount': cls._calculate_total(order),
+            'callback_url': settings.IPAG_CALLBACK_URL,
+            'order_id': str(order.id),
+            'capture': capture,
+            'payment': {
+                'type': 'card',
+                'method': card_data['brand'],  # visa, mastercard, elo, amex, diners, discover, hipercard, hiper, jcb, aura
+                'installments': installments,
+                'card': {
+                    'holder': card_data['holder'],
+                    'number': card_data['number'],
+                    'expiry_month': card_data['expiry_month'],
+                    'expiry_year': card_data['expiry_year'],
+                    'cvv': card_data['cvv'],
+                },
+            },
+            'customer': {'name': order.customer_name, 'cpf_cnpj': order.customer_cpf},
+            'products': cls._build_products(order),
+        }
+        return cls._post('/service/payment', payload)
+
+    @classmethod
+    def create_pix_payment(cls, order, expires_in_minutes=1440):
+        payload = {
+            'amount': cls._calculate_total(order),
+            'callback_url': settings.IPAG_CALLBACK_URL,
+            'order_id': str(order.id),
+            'payment': {'type': 'pix', 'method': 'pix', 'pix_expires_in': expires_in_minutes},
+            'customer': {'name': order.customer_name, 'cpf_cnpj': order.customer_cpf},
+            'products': cls._build_products(order),
+        }
+        return cls._post('/service/payment', payload)
+
+    @classmethod
+    def consult_payment(cls, transaction_id):
+        response = requests.get(
+            f'{cls.BASE_URL}/service/consult', params={'id': transaction_id},
+            headers=cls._headers(), auth=cls._auth(), timeout=15,
+        )
+        response.raise_for_status()
+        return response.json()

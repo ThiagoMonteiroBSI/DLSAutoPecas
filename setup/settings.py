@@ -165,3 +165,9 @@ MELHOR_ENVIO_TOKEN = env('MELHOR_ENVIO_TOKEN', default='')
 MELHOR_ENVIO_URL = env('MELHOR_ENVIO_URL', default='https://sandbox.melhorenvio.com.br')
 
 GOOGLE_CLIENT_ID = env('GOOGLE_CLIENT_ID')
+
+
+IPAG_API_ID = env('IPAG_API_ID')
+IPAG_API_KEY = env('IPAG_API_KEY')
+IPAG_BASE_URL = env('IPAG_BASE_URL', default='https://sandbox.ipag.com.br')
+IPAG_CALLBACK_URL = env('IPAG_CALLBACK_URL')
