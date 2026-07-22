@@ -173,25 +173,17 @@ class PaymentWebhookView(APIView):
 
 
 class OrderPaymentView(APIView):
-    permission_classes = [AllowAny]
-
     def post(self, request, order_id):
         try:
             order = Order.objects.get(id=order_id)
         except Order.DoesNotExist:
             return Response({'error': 'Pedido não encontrado.'}, status=status.HTTP_404_NOT_FOUND)
 
-        if order.status != 'PENDING':
-            return Response({'error': 'Este pedido já foi processado.'}, status=status.HTTP_400_BAD_REQUEST)
-
         payment_method = request.data.get('payment_method')
 
         try:
-            if payment_method == 'credit_card':
+            if payment_method == 'card':
                 card_data = request.data.get('card', {})
-                required = ['holder', 'number', 'expiry_month', 'expiry_year', 'cvv', 'brand']
-                if not all(card_data.get(f) for f in required):
-                    return Response({'error': 'Dados do cartão incompletos.'}, status=status.HTTP_400_BAD_REQUEST)
                 installments = int(request.data.get('installments', 1))
                 result = IpagService.create_card_payment(order, card_data, installments=installments, capture=True)
 
@@ -213,14 +205,14 @@ class OrderPaymentView(APIView):
         attributes = result.get('attributes', result)
         status_code = attributes.get('status', {}).get('code')
 
+        # Atualização do status no Banco de Dados
         if status_code == 8:  # CAPTURED (Cartão)
             order.status = 'PAID'
             order.save()
-        elif status_code == 2: # WAITING_PAYMENT (Boleto / Pix)
+        elif status_code == 2:  # WAITING_PAYMENT (Boleto / Pix)
             order.status = 'PENDING'
             order.save()
 
-        # Resposta padronizada para o Frontend
         response_data = {
             'order_id': str(order.id),
             'status_code': status_code,
@@ -228,7 +220,7 @@ class OrderPaymentView(APIView):
             'gateway_message': attributes.get('message'),
         }
 
-        # AJUSTE SEGURO: Se a transação for boleto, extrai e envia os dados de impressão
+        # Extração dos dados do boleto para o Frontend
         payment_info = attributes.get('payment', {})
         if payment_info.get('type') == 'boleto':
             boleto_data = payment_info.get('boleto', {})
