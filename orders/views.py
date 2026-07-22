@@ -3,6 +3,10 @@ from rest_framework.response import Response
 from rest_framework import status, generics
 from rest_framework.permissions import IsAuthenticated, AllowAny
 
+
+import requests
+from .services.ipag import IpagService
+
 from .models import Order
 from .serializers import OrderSerializer, ShippingSimulationSerializer
 from catalog.models import Product # Importação necessária para ler os pesos
@@ -169,3 +173,57 @@ class PaymentWebhookView(APIView):
             return Response({"error": f"Pedido referenciado ({order_id}) não encontrado."}, status=status.HTTP_404_NOT_FOUND)
         except Exception:
             return Response({"error": "Erro interno ao processar o webhook."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class OrderPaymentView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request, order_id):
+        try:
+            order = Order.objects.get(id=order_id)
+        except Order.DoesNotExist:
+            return Response({'error': 'Pedido não encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if order.status != 'PENDING':
+            return Response({'error': 'Este pedido já foi processado.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        payment_method = request.data.get('payment_method')
+
+        try:
+            if payment_method == 'credit_card':
+                card_data = request.data.get('card', {})
+                required = ['holder', 'number', 'expiry_month', 'expiry_year', 'cvv', 'brand']
+                if not all(card_data.get(f) for f in required):
+                    return Response({'error': 'Dados do cartão incompletos.'}, status=status.HTTP_400_BAD_REQUEST)
+                installments = int(request.data.get('installments', 1))
+                result = IpagService.create_card_payment(order, card_data, installments=installments, capture=True)
+
+            elif payment_method == 'pix':
+                result = IpagService.create_pix_payment(order)
+
+            elif payment_method == 'boleto':
+                due_date = request.data.get('due_date')
+                if not due_date:
+                    return Response({'error': 'Data de vencimento do boleto é obrigatória.'}, status=status.HTTP_400_BAD_REQUEST)
+                result = IpagService.create_boleto_payment(order, due_date)
+
+            else:
+                return Response({'error': 'Método de pagamento inválido.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        except requests.exceptions.RequestException:
+            return Response({'error': 'Serviço de pagamento indisponível no momento. Tente novamente.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        attributes = result.get('attributes', result)
+        status_code = attributes.get('status', {}).get('code')
+
+        if status_code == 8:  # CAPTURED
+            order.status = 'PAID'
+            order.save()
+
+        return Response({
+            'order_id': str(order.id),
+            'status_code': status_code,
+            'status_message': attributes.get('status', {}).get('message'),
+            'pix': attributes.get('pix'),
+            'boleto': attributes.get('boleto'),
+        })
