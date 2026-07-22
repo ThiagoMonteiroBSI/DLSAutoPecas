@@ -123,28 +123,38 @@ class IpagService:
     
     @classmethod
     def create_boleto_payment(cls, order, due_date):
+        import re
+        import time
+
+        # AJUSTE: Evita erro de duplicidade (transaction_order_id_must_be_unique)
+        # gerando um sufixo baseado no timestamp atual respeitando os 16 caracteres da iPag.
+        short_id = str(order.id)[:6]
+        unique_order_id = f"{short_id}-{hex(int(time.time()))[2:]}"[:16]
+
         payload = {
-            'amount': cls._calculate_total(order),
+            'amount': float(cls._calculate_total(order)),
             'callback_url': settings.IPAG_CALLBACK_URL,
-            'order_id': str(order.id),
+            'order_id': unique_order_id,
             'payment': {
                 'type': 'boleto',
                 'method': 'boleto',
-                'boleto': {'due_date': due_date},  # formato "AAAA-MM-DD"
+                'boleto': {
+                    'due_date': due_date  # formato esperado: "YYYY-MM-DD"
+                },
             },
             'customer': {
                 'name': order.customer_name,
-                'cpf_cnpj': order.customer_cpf,
-                'phone': order.customer_phone,
+                'cpf_cnpj': re.sub(r'\D', '', order.customer_cpf), # AJUSTE: Apenas números
+                'phone': re.sub(r'\D', '', order.customer_phone),
                 'email': order.customer_email,
                 'billing_address': {
                     'street': order.street,
                     'number': order.number,
                     'district': order.district,
-                    'complement': order.complement,
+                    'complement': order.complement or '',
                     'city': order.city,
                     'state': order.state,
-                    'zipcode': order.zip_code,
+                    'zipcode': re.sub(r'\D', '', order.zip_code), # AJUSTE: Apenas números
                 },
             },
             'products': cls._build_products(order),

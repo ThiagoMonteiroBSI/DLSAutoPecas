@@ -213,14 +213,29 @@ class OrderPaymentView(APIView):
         attributes = result.get('attributes', result)
         status_code = attributes.get('status', {}).get('code')
 
-        if status_code == 8:  # CAPTURED
+        if status_code == 8:  # CAPTURED (Cartão)
             order.status = 'PAID'
             order.save()
+        elif status_code == 2: # WAITING_PAYMENT (Boleto / Pix)
+            order.status = 'PENDING'
+            order.save()
 
-        return Response({
+        # Resposta padronizada para o Frontend
+        response_data = {
             'order_id': str(order.id),
             'status_code': status_code,
-            'status_message': attributes.get('status', {}).get('message'),
-            'pix': attributes.get('pix'),
-            'boleto': attributes.get('boleto'),
-        })
+            'status_message': attributes.get('status', {}).get('name'),
+            'gateway_message': attributes.get('message'),
+        }
+
+        # AJUSTE SEGURO: Se a transação for boleto, extrai e envia os dados de impressão
+        payment_info = attributes.get('payment', {})
+        if payment_info.get('type') == 'boleto':
+            boleto_data = payment_info.get('boleto', {})
+            response_data['boleto'] = {
+                'url': boleto_data.get('url') or boleto_data.get('pdf'),
+                'digitable_line': boleto_data.get('digitable_line') or boleto_data.get('linha_digitavel'),
+                'barcode': boleto_data.get('barcode') or boleto_data.get('codigo_barras'),
+            }
+
+        return Response(response_data, status=status.HTTP_200_OK)
