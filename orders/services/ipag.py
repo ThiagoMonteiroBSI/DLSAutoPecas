@@ -1,5 +1,7 @@
 import requests
 from django.conf import settings
+import re
+import time
 
 # Doc: "Status da Transação"
 IPAG_STATUS = {
@@ -57,24 +59,43 @@ class IpagService:
 
     @classmethod
     def create_card_payment(cls, order, card_data, installments=1, capture=True):
+        # Cria um ID único curto para evitar o erro 'transaction_order_id_must_be_unique'
+        # e respeitar o limite de 16 caracteres da iPag.
+        short_id = str(order.id)[:6]
+        unique_order_id = f"{short_id}-{hex(int(time.time()))[2:]}"[:16]
+
         payload = {
-            'amount': cls._calculate_total(order),
+            'amount': float(cls._calculate_total(order)),
             'callback_url': settings.IPAG_CALLBACK_URL,
-            'order_id': str(order.id),
-            'capture': capture,
+            'order_id': unique_order_id, # ID único para a iPag
             'payment': {
                 'type': 'card',
-                'method': card_data['brand'],  # visa, mastercard, elo, amex, diners, discover, hipercard, hiper, jcb, aura
-                'installments': installments,
+                'method': card_data['brand'], 
+                'installments': int(installments),
+                'capture': capture, # Parâmetro exigido dentro de 'payment'
                 'card': {
                     'holder': card_data['holder'],
-                    'number': card_data['number'],
+                    'number': re.sub(r'\D', '', card_data['number']),
                     'expiry_month': card_data['expiry_month'],
                     'expiry_year': card_data['expiry_year'],
                     'cvv': card_data['cvv'],
                 },
             },
-            'customer': {'name': order.customer_name, 'cpf_cnpj': order.customer_cpf},
+            'customer': {
+                'name': order.customer_name, 
+                'cpf_cnpj': re.sub(r'\D', '', order.customer_cpf),
+                'email': order.customer_email, # Obrigatório para antifraude/3DS
+                'phone': re.sub(r'\D', '', order.customer_phone), # Obrigatório para antifraude/3DS
+                'billing_address': { # Obrigatório para antifraude/3DS
+                    'street': order.street,
+                    'number': order.number,
+                    'district': order.district,
+                    'complement': order.complement or '',
+                    'city': order.city,
+                    'state': order.state,
+                    'zipcode': re.sub(r'\D', '', order.zip_code),
+                },
+            },
             'products': cls._build_products(order),
         }
         return cls._post('/service/payment', payload)

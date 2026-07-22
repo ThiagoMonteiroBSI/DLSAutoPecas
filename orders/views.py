@@ -136,43 +136,40 @@ class ShippingSimulationView(APIView):
             return Response({'error': 'Serviço dos Correios indisponível no momento. Tente novamente mais tarde.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
 class PaymentWebhookView(APIView):
-    """
-    ATENÇÃO: estou presumindo que o webhook envia a mesma estrutura de
-    "attributes" que aparece no retorno de criação/consulta de pagamento
-    (resource "transactions"). Ainda não vi a doc de Webhooks confirmando
-    isso — se o payload real vier diferente, ajustamos aqui.
-    """
     permission_classes = [AllowAny]
 
-    # Código iPag -> status do seu Order (models.py só tem PENDING/PAID/SHIPPED/DELIVERED/CANCELED)
     STATUS_MAP = {
         8: 'PAID',       # CAPTURED
         6: 'PAID',       # PARTIAL_CAPTURED
         7: 'CANCELED',   # DECLINED
         3: 'CANCELED',   # CANCELED
-        9: 'CANCELED',   # CHARGEBACK (não existe status próprio pra isso ainda no seu model)
+        9: 'CANCELED',   # CHARGEBACK
     }
 
     def post(self, request):
         payload = request.data
         attributes = payload.get('attributes', payload)
-        order_id = attributes.get('order_id')
+        
+        ipag_order_id = attributes.get('order_id')
         status_code = attributes.get('status', {}).get('code')
 
-        if not order_id or status_code is None:
-            return Response({"error": "Payload inválido. Faltam parâmetros obrigatórios."}, status=status.HTTP_400_BAD_REQUEST)
+        if not ipag_order_id or status_code is None:
+            return Response({"error": "Parâmetros inválidos."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Recupera o ID original do Django (removendo o sufixo único que adicionamos)
+        original_order_id = ipag_order_id.split('-')[0]
 
         try:
-            order = Order.objects.get(id=order_id)
+            order = Order.objects.get(id=original_order_id)
             new_status = self.STATUS_MAP.get(status_code)
+            
             if new_status:
                 order.status = new_status
                 order.save()
-            return Response({"message": "Webhook recebido e processado com sucesso."}, status=status.HTTP_200_OK)
+                
+            return Response({"message": "Webhook processado."}, status=status.HTTP_200_OK)
         except Order.DoesNotExist:
-            return Response({"error": f"Pedido referenciado ({order_id}) não encontrado."}, status=status.HTTP_404_NOT_FOUND)
-        except Exception:
-            return Response({"error": "Erro interno ao processar o webhook."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"error": "Pedido não encontrado."}, status=status.HTTP_404_NOT_FOUND)
 
 
 class OrderPaymentView(APIView):
