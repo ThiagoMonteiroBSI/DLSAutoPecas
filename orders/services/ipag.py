@@ -99,3 +99,33 @@ class IpagService:
         )
         response.raise_for_status()
         return response.json()
+    
+    @classmethod
+    def create_boleto_payment(cls, order, due_date):
+        payload = {
+            'amount': cls._calculate_total(order),
+            'callback_url': settings.IPAG_CALLBACK_URL,
+            'order_id': str(order.id),
+            'payment': {
+                'type': 'boleto',
+                'method': 'boleto',
+                'boleto': {'due_date': due_date},  # formato "AAAA-MM-DD"
+            },
+            'customer': {
+                'name': order.customer_name,
+                'cpf_cnpj': order.customer_cpf,
+                'phone': order.customer_phone,
+                'email': order.customer_email,
+                'billing_address': {
+                    'street': order.street,
+                    'number': order.number,
+                    'district': order.district,
+                    'complement': order.complement,
+                    'city': order.city,
+                    'state': order.state,
+                    'zipcode': order.zip_code,
+                },
+            },
+            'products': cls._build_products(order),
+        }
+        return cls._post('/service/payment', payload)
