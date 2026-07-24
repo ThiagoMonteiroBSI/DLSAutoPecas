@@ -1,20 +1,25 @@
-import requests
-from django.conf import settings
+import logging
 import re
 import time
 
+import requests
+from django.conf import settings
+
+logger = logging.getLogger(__name__)
+
+
 # Doc: "Status da Transação"
 IPAG_STATUS = {
-    1: 'CREATED',
-    2: 'WAITING_PAYMENT',
-    3: 'CANCELED',
-    4: 'IN_ANALYSIS',
-    5: 'PRE_AUTHORIZED',
-    6: 'PARTIAL_CAPTURED',
-    7: 'DECLINED',
-    8: 'CAPTURED',
-    9: 'CHARGEBACK',
-    10: 'IN_DISPUTE',
+    1: "CREATED",
+    2: "WAITING_PAYMENT",
+    3: "CANCELED",
+    4: "IN_ANALYSIS",
+    5: "PRE_AUTHORIZED",
+    6: "PARTIAL_CAPTURED",
+    7: "DECLINED",
+    8: "CAPTURED",
+    9: "CHARGEBACK",
+    10: "IN_DISPUTE",
 }
 
 
@@ -23,7 +28,10 @@ class IpagService:
 
     @classmethod
     def _headers(cls):
-        return {'Content-Type': 'application/json', 'x-api-version': '2'}
+        return {
+            "Content-Type": "application/json",
+            "x-api-version": "2",
+        }
 
     @classmethod
     def _auth(cls):
@@ -32,18 +40,22 @@ class IpagService:
     @classmethod
     def _calculate_total(cls, order):
         # Mesma conta que o OrderSerializer.get_total() já faz
-        items_total = sum(item.quantity * item.unit_price for item in order.items.all())
+        items_total = sum(
+            item.quantity * item.unit_price for item in order.items.all()
+        )
         return float(items_total + order.shipping_fee)
 
     @classmethod
-    def _build_products(cls, order):
+    def _build_products(cls):
         return [
             {
-                'name': item.product.name,
-                'description': (item.product.description or item.product.name)[:255],
-                'unit_price': float(item.unit_price),
-                'quantity': item.quantity,
-                'sku': item.product.sku,
+                "name": item.product.name,
+                "description": (
+                    item.product.description or item.product.name
+                )[:255],
+                "unit_price": float(item.unit_price),
+                "quantity": item.quantity,
+                "sku": item.product.sku,
             }
             for item in order.items.all()
         ]
@@ -51,108 +63,137 @@ class IpagService:
     @classmethod
     def _post(cls, path, payload):
         response = requests.post(
-            f'{cls.BASE_URL}{path}', json=payload,
-            headers=cls._headers(), auth=cls._auth(), timeout=15,
+            f"{cls.BASE_URL}{path}",
+            json=payload,
+            headers=cls._headers(),
+            auth=cls._auth(),
+            timeout=15,
         )
         response.raise_for_status()
         return response.json()
 
     @classmethod
-    def create_card_payment(cls, order, card_data, installments=1, capture=True):
-        # Cria um ID único curto para evitar o erro 'transaction_order_id_must_be_unique'
+    def create_card_payment(
+        cls,
+        order,
+        card_data,
+        installments=1,
+        capture=True,
+    ):
+        # Cria um ID único curto para evitar o erro
+        # "transaction_order_id_must_be_unique"
         # e respeitar o limite de 16 caracteres da iPag.
         short_id = str(order.id)[:6]
         unique_order_id = f"{short_id}-{hex(int(time.time()))[2:]}"[:16]
 
         payload = {
-            'amount': float(cls._calculate_total(order)),
-            'callback_url': settings.IPAG_CALLBACK_URL,
-            'order_id': unique_order_id, # ID único para a iPag
-            'payment': {
-                'type': 'card',
-                'method': card_data['brand'], 
-                'installments': int(installments),
-                'capture': capture, # Parâmetro exigido dentro de 'payment'
-                'card': {
-                    'holder': card_data['holder'],
-                    'number': re.sub(r'\D', '', card_data['number']),
-                    'expiry_month': card_data['expiry_month'],
-                    'expiry_year': card_data['expiry_year'],
-                    'cvv': card_data['cvv'],
+            "amount": float(cls._calculate_total(order)),
+            "callback_url": settings.IPAG_CALLBACK_URL,
+            "order_id": unique_order_id,
+            "payment": {
+                "type": "card",
+                "method": card_data["brand"],
+                "installments": int(installments),
+                "capture": capture,
+                "card": {
+                    "holder": card_data["holder"],
+                    "number": re.sub(r"\D", "", card_data["number"]),
+                    "expiry_month": card_data["expiry_month"],
+                    "expiry_year": card_data["expiry_year"],
+                    "cvv": card_data["cvv"],
                 },
             },
-            'customer': {
-                'name': order.customer_name, 
-                'cpf_cnpj': re.sub(r'\D', '', order.customer_cpf),
-                'email': order.customer_email, # Obrigatório para antifraude/3DS
-                'phone': re.sub(r'\D', '', order.customer_phone), # Obrigatório para antifraude/3DS
-                'billing_address': { # Obrigatório para antifraude/3DS
-                    'street': order.street,
-                    'number': order.number,
-                    'district': order.district,
-                    'complement': order.complement or '',
-                    'city': order.city,
-                    'state': order.state,
-                    'zipcode': re.sub(r'\D', '', order.zip_code),
+            "customer": {
+                "name": order.customer_name,
+                "cpf_cnpj": re.sub(r"\D", "", order.customer_cpf),
+                "email": order.customer_email,
+                "phone": re.sub(r"\D", "", order.customer_phone),
+                "billing_address": {
+                    "street": order.street,
+                    "number": order.number,
+                    "district": order.district,
+                    "complement": order.complement or "",
+                    "city": order.city,
+                    "state": order.state,
+                    "zipcode": re.sub(r"\D", "", order.zip_code),
                 },
             },
-            'products': cls._build_products(order),
+            "products": cls._build_products(order),
         }
-        return cls._post('/service/payment', payload)
+
+        return cls._post("/service/payment", payload)
 
     @classmethod
     def create_pix_payment(cls, order, expires_in_minutes=1440):
         payload = {
-            'amount': cls._calculate_total(order),
-            'callback_url': settings.IPAG_CALLBACK_URL,
-            'order_id': str(order.id),
-            'payment': {'type': 'pix', 'method': 'pix', 'pix_expires_in': expires_in_minutes},
-            'customer': {'name': order.customer_name, 'cpf_cnpj': order.customer_cpf},
-            'products': cls._build_products(order),
+            "amount": float(cls._calculate_total(order)),
+            "callback_url": settings.IPAG_CALLBACK_URL,
+            "order_id": str(order.id),
+            "payment": {
+                "type": "pix",
+                "method": "pix",
+                "pix_expires_in": expires_in_minutes,
+            },
+            "customer": {
+                "name": order.customer_name,
+                "cpf_cnpj": re.sub(r"\D", "", order.customer_cpf),
+            },
+            "products": cls._build_products(order),
         }
-        return cls._post('/service/payment', payload)
+
+        return cls._post("/service/payment", payload)
 
     @classmethod
     def consult_payment(cls, transaction_id):
         response = requests.get(
-            f'{cls.BASE_URL}/service/consult', params={'id': transaction_id},
-            headers=cls._headers(), auth=cls._auth(), timeout=15,
+            f"{cls.BASE_URL}/service/consult",
+            params={"id": transaction_id},
+            headers=cls._headers(),
+            auth=cls._auth(),
+            timeout=15,
         )
         response.raise_for_status()
         return response.json()
-    
+
     @classmethod
     def create_boleto_payment(cls, order, due_date):
-        # Gera um identificador único de até 16 caracteres para a iPag
+        # Cria um ID único curto para evitar duplicidade
         short_id = str(order.id)[:6]
         unique_order_id = f"{short_id}-{hex(int(time.time()))[2:]}"[:16]
 
-        payload = {
-            'amount': float(cls._calculate_total(order)),
-            'callback_url': settings.IPAG_CALLBACK_URL,
-            'order_id': unique_order_id,
-            'payment': {
-                'type': 'boleto',
-                'method': 'boleto',
-                'boleto': {
-                    'due_date': due_date  # Formato exigido: "YYYY-MM-DD"
-                },
-            },
-            'customer': {
-                'name': order.customer_name,
-                'cpf_cnpj': re.sub(r'\D', '', order.customer_cpf),  # Apenas números
-                'phone': re.sub(r'\D', '', order.customer_phone),    # Apenas números
-                'email': order.customer_email,
-                'billing_address': {
-                    'street': order.street,
-                    'number': order.number,
-                    'district': order.district,
-                    'complement': order.complement or '',
-                    'city': order.city,
-                    'state': order.state,
-                    'zipcode': re.sub(r'\D', '', order.zip_code),    # Apenas números
-                },
-            },
-            'products': cls._build_products(order),
+        billing_address = {
+            "street": order.street,
+            "number": order.number,
+            "district": order.district,
+            "complement": order.complement or "",
+            "city": order.city,
+            "state": order.state,
+            "zipcode": re.sub(r"\D", "", order.zip_code),
         }
-        return cls._post('/service/payment', payload)
+
+        payload = {
+            "amount": float(cls._calculate_total(order)),
+            "callback_url": settings.IPAG_CALLBACK_URL,
+            "order_id": unique_order_id,
+            "payment": {
+                "type": "boleto",
+                "method": settings.IPAG_BOLETO_METHOD,
+                "boleto": {
+                    "due_date": due_date,
+                    "instructions": [
+                        f"Referente ao pedido {order.id}"
+                    ],
+                },
+            },
+            "customer": {
+                "name": order.customer_name,
+                "cpf_cnpj": re.sub(r"\D", "", order.customer_cpf),
+                "phone": re.sub(r"\D", "", order.customer_phone),
+                "email": order.customer_email,
+                "billing_address": billing_address,
+                "shipping_address": billing_address,
+            },
+            "products": cls._build_products(order),
+        }
+
+        return cls._post("/service/payment", payload)
