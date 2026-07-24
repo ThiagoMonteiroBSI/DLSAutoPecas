@@ -220,14 +220,16 @@ class OrderPaymentView(APIView):
             'gateway_message': attributes.get('message'),
         }
 
-        # Extração dos dados do boleto para o Frontend
-        payment_info = attributes.get('payment', {})
-        if payment_info.get('type') == 'boleto':
-            boleto_data = payment_info.get('boleto', {})
-            response_data['boleto'] = {
-                'url': boleto_data.get('url') or boleto_data.get('pdf'),
-                'digitable_line': boleto_data.get('digitable_line') or boleto_data.get('linha_digitavel'),
-                'barcode': boleto_data.get('barcode') or boleto_data.get('codigo_barras'),
-            }
+        # Extração de dados PIX
+        # A documentação v2 da iPag retorna os dados do pix no objeto 'attributes.pix'
+        if payment_method == 'pix' and status_code == 2:
+            pix_data = attributes.get('pix', {})
+            if pix_data:
+                response_data['pix'] = {
+                    'qrcode64': pix_data.get('qrcode64'), # Imagem Base64
+                    'text': pix_data.get('text')          # Pix Copia e Cola
+                }
+
+        # Se houver integração futura de Boleto, o bloco ficaria aqui.
 
         return Response(response_data, status=status.HTTP_200_OK)

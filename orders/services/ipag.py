@@ -124,24 +124,40 @@ class IpagService:
         return cls._post("/service/payment", payload)
 
     @classmethod
-    def create_pix_payment(cls, order, expires_in_minutes=1440):
-        payload = {
-            "amount": float(cls._calculate_total(order)),
-            "callback_url": settings.IPAG_CALLBACK_URL,
-            "order_id": str(order.id),
-            "payment": {
-                "type": "pix",
-                "method": "pix",
-                "pix_expires_in": expires_in_minutes,
-            },
-            "customer": {
-                "name": order.customer_name,
-                "cpf_cnpj": re.sub(r"\D", "", order.customer_cpf),
-            },
-            "products": cls._build_products(order),
-        }
+    def create_pix_payment(cls, order):
+        import re
+        import time
 
-        return cls._post("/service/payment", payload)
+        # Gera ID único de até 16 caracteres para evitar 'transaction_order_id_must_be_unique'
+        short_id = str(order.id)[:6]
+        unique_order_id = f"{short_id}-{hex(int(time.time()))[2:]}"[:16]
+
+        payload = {
+            'amount': float(cls._calculate_total(order)),
+            'callback_url': settings.IPAG_CALLBACK_URL,
+            'order_id': unique_order_id,
+            'payment': {
+                'type': 'pix',
+                'method': 'pix',
+            },
+            'customer': {
+                'name': order.customer_name,
+                'cpf_cnpj': re.sub(r'\D', '', order.customer_cpf),
+                'phone': re.sub(r'\D', '', order.customer_phone),
+                'email': order.customer_email,
+                'billing_address': {
+                    'street': order.street,
+                    'number': order.number,
+                    'district': order.district,
+                    'complement': order.complement or '',
+                    'city': order.city,
+                    'state': order.state,
+                    'zipcode': re.sub(r'\D', '', order.zip_code),
+                },
+            },
+            'products': cls._build_products(order),
+        }
+        return cls._post('/service/payment', payload)
 
     @classmethod
     def consult_payment(cls, transaction_id):
