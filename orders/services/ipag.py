@@ -128,8 +128,7 @@ class IpagService:
         import re
         import uuid
 
-        # Usa UUID curto de 8 caracteres para garantir que o order_id seja sempre único,
-        # mesmo se o cliente clicar no botão duas vezes no mesmo segundo.
+        # Gera ID único de até 16 caracteres para evitar duplicidade
         short_id = str(order.id)[:6]
         unique_order_id = f"{short_id}-{uuid.uuid4().hex[:8]}"[:16]
 
@@ -140,15 +139,13 @@ class IpagService:
             'payment': {
                 'type': 'pix',
                 'method': 'pix',
-                'pix': {
-                    'expires_in': 1  # OBRIGATÓRIO: Tempo de expiração do PIX em dias (1 dia)
-                }
+                'pix_expires_in': 1440  # OBRIGATÓRIO: Exatamente como na documentação (em minutos)
             },
             'customer': {
                 'name': order.customer_name,
                 'cpf_cnpj': re.sub(r'\D', '', order.customer_cpf),
-                'phone': re.sub(r'\D', '', order.customer_phone),
                 'email': order.customer_email,
+                'phone': re.sub(r'\D', '', order.customer_phone),
                 'billing_address': {
                     'street': order.street,
                     'number': order.number,
