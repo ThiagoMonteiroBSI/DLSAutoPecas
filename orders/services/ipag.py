@@ -124,18 +124,36 @@ class IpagService:
         return cls._post("/service/payment", payload)
 
     @classmethod
-    def create_pix_payment(cls, order, expires_in_minutes=1440):
+    def create_pix_payment(cls, order):
+        import re
+        import uuid
+
         short_id = str(order.id)[:6]
-        unique_order_id = f"{short_id}-{hex(int(time.time()))[2:]}"[:16]
+        unique_order_id = f"{short_id}-{uuid.uuid4().hex[:8]}"[:16]
 
         payload = {
-            'amount': cls._calculate_total(order),
+            'amount': float(cls._calculate_total(order)),
             'callback_url': settings.IPAG_CALLBACK_URL,
             'order_id': unique_order_id,
-            'payment': {'type': 'pix', 'method': 'pix', 'pix_expires_in': expires_in_minutes},
+            'payment': {
+                'type': 'pix',
+                'method': 'pix',
+                'pix_expires_in': 1440  # 24 horas em minutos
+            },
             'customer': {
                 'name': order.customer_name,
-                'cpf_cnpj': order.customer_cpf,  # doc oficial envia com pontuação, sem re.sub
+                'cpf_cnpj': re.sub(r'\D', '', order.customer_cpf),
+                'phone': re.sub(r'\D', '', order.customer_phone),
+                'email': order.customer_email,
+                'billing_address': {
+                    'street': order.street,
+                    'number': order.number,
+                    'district': order.district,
+                    'complement': order.complement or '',
+                    'city': order.city,
+                    'state': order.state,
+                    'zipcode': re.sub(r'\D', '', order.zip_code),
+                },
             },
             'products': cls._build_products(order),
         }
