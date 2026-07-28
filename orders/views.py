@@ -235,4 +235,4 @@ class OrderPaymentView(APIView):
             return Response({'error': 'Serviço de pagamento indisponível no momento. Tente novamente.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
         except Exception:
             logger.exception("Erro inesperado ao processar pagamento (order %s)", order_id)
-            return Response({'error': 'Erro inesperado ao processar o pagamento.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)A
+            return Response({'error': 'Erro inesperado ao processar o pagamento.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
