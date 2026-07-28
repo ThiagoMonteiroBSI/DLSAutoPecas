@@ -124,37 +124,18 @@ class IpagService:
         return cls._post("/service/payment", payload)
 
     @classmethod
-    def create_pix_payment(cls, order):
-        import re
-        import uuid
-
-        # Gera ID único de até 16 caracteres para evitar duplicidade
+    def create_pix_payment(cls, order, expires_in_minutes=1440):
         short_id = str(order.id)[:6]
-        unique_order_id = f"{short_id}-{uuid.uuid4().hex[:8]}"[:16]
+        unique_order_id = f"{short_id}-{hex(int(time.time()))[2:]}"[:16]
 
         payload = {
-            'amount': float(cls._calculate_total(order)),
+            'amount': cls._calculate_total(order),
             'callback_url': settings.IPAG_CALLBACK_URL,
             'order_id': unique_order_id,
-            'payment': {
-                'type': 'pix',
-                'method': 'pix',
-                'pix_expires_in': 1440  # OBRIGATÓRIO: Exatamente como na documentação (em minutos)
-            },
+            'payment': {'type': 'pix', 'method': 'pix', 'pix_expires_in': expires_in_minutes},
             'customer': {
                 'name': order.customer_name,
-                'cpf_cnpj': re.sub(r'\D', '', order.customer_cpf),
-                'email': order.customer_email,
-                'phone': re.sub(r'\D', '', order.customer_phone),
-                'billing_address': {
-                    'street': order.street,
-                    'number': order.number,
-                    'district': order.district,
-                    'complement': order.complement or '',
-                    'city': order.city,
-                    'state': order.state,
-                    'zipcode': re.sub(r'\D', '', order.zip_code),
-                },
+                'cpf_cnpj': order.customer_cpf,  # doc oficial envia com pontuação, sem re.sub
             },
             'products': cls._build_products(order),
         }
