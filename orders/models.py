@@ -32,6 +32,14 @@ class Order(models.Model):
 
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
     tracking_code = models.CharField(max_length=100, blank=True, null=True)
+
+    # --- NOVOS CAMPOS PARA MERCADO PAGO ---
+    mercadopago_order_id = models.CharField(max_length=100, blank=True, null=True, db_index=True)
+    payment_method = models.CharField(max_length=20, blank=True, default='')  # 'pix' ou 'card'
+    payment_status = models.CharField(max_length=50, blank=True, default='')   # status retornado do MP (e.g. approved, pending)
+    pix_expiration_date = models.DateTimeField(blank=True, null=True)         # Data/hora de expiração do Pix
+    # --------------------------------------
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
