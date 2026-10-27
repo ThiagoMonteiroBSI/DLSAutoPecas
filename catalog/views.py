@@ -1,4 +1,6 @@
 from rest_framework import viewsets, filters, generics, permissions, status
+from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -58,19 +60,25 @@ class GoogleLoginView(APIView):
                 status=status.HTTP_401_UNAUTHORIZED
             )
 
-        email = idinfo['email']
 
-        user, created = User.objects.get_or_create(
-            email=email,
-            defaults={
-                'username': email,
-                'first_name': idinfo.get('given_name', ''),
-                'last_name': idinfo.get('family_name', ''),
-            }
-        )
-        if created:
+        email = idinfo['email'].lower()
+
+        user = User.objects.filter(email__iexact=email).first()
+        if user is None:
+            user = User.objects.create_user(
+                username=email,
+                email=email,
+                first_name=idinfo.get('given_name', ''),
+                last_name=idinfo.get('family_name', ''),
+            )
             user.set_unusable_password()
             user.save()
+
+        # Permissao administrativa somente para e-mails autorizados.
+        # Nunca remove permissao de quem ja e admin por outro caminho.
+        if email in settings.GOOGLE_ADMIN_EMAILS and not user.is_staff:
+            user.is_staff = True
+            user.save(update_fields=['is_staff'])
 
         refresh = RefreshToken.for_user(user)
         return Response({
@@ -308,3 +316,18 @@ class CustomerDetailView(APIView):
                 return Response({"erro": "Usuário não encontrado"}, status=404)
         else:
             return Response({"erro": "Não é possível excluir clientes convidados que possuem vínculos a pedidos."}, status=400)
+
+class EmailOrUsernameTokenSerializer(TokenObtainPairSerializer):
+    """Permite login com e-mail além do username."""
+
+    def validate(self, attrs):
+        login = attrs.get('username', '')
+        if '@' in login:
+            user = User.objects.filter(email__iexact=login).first()
+            if user:
+                attrs['username'] = user.username
+        return super().validate(attrs)
+
+
+class EmailOrUsernameTokenView(TokenObtainPairView):
+    serializer_class = EmailOrUsernameTokenSerializer

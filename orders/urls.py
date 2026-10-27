@@ -1,10 +1,11 @@
-from django.urls import path
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
 from . import views
 
+router = DefaultRouter()
+router.register(r'', views.OrderViewSet, basename='order')
+
 urlpatterns = [
-    path('', views.OrderListView.as_view(), name='order-list'),
-    path('checkout/', views.CheckoutView.as_view(), name='checkout'),
-    path('<uuid:order_id>/pay/', views.OrderPaymentView.as_view(), name='order-pay'),
-    path('shipping/simulate/', views.ShippingSimulationView.as_view(), name='shipping-simulate'),
-    path('webhook/mercadopago/', views.MercadoPagoWebhookView.as_view(), name='mercadopago-webhook'),
+    path('shipping/simulate/', views.ShippingQuoteView.as_view(), name='shipping_simulate'),
+    path('', include(router.urls)),
 ]

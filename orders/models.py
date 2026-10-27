@@ -29,6 +29,8 @@ class Order(models.Model):
 
     shipping_service = models.CharField(max_length=50)
     shipping_fee = models.DecimalField(max_digits=8, decimal_places=2, default=0.00)
+    shipping_service_id = models.IntegerField(null=True, blank=True)       # 1=PAC, 2=SEDEX, 17=Mini
+    shipping_deadline_days = models.IntegerField(null=True, blank=True)
 
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
     tracking_code = models.CharField(max_length=100, blank=True, null=True)
